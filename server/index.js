@@ -9,44 +9,32 @@ const session = require('express-session'); // for session management
 const multer = require('multer') // for image upload and storage
 const fs = require('fs'); // for base64 conversion of images
 const path = require('path')
+const {
+	validateEnvVars,
+	getCorsConfig,
+	getSessionConfig,
+	getSocketIOCorsConfig,
+	getEmailTransporterConfig
+} = require('./config/security');
 
 // Validate required environment variables at startup
-const requiredEnvVars = ['SESSION_SECRET', 'EMAIL_ADDRESS', 'EMAIL_PASSWORD', 'CLIENT_URL'];
-const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
-if (missingEnvVars.length > 0) {
-	console.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+const envValidation = validateEnvVars();
+if (!envValidation.isValid) {
+	console.error(`Missing required environment variables: ${envValidation.missingVars.join(', ')}`);
 	process.exit(1);
 }
 
 // CORS configuration - restrict origins to CLIENT_URL
-app.use(cors({
-	origin: process.env.CLIENT_URL,
-	credentials: true
-}))
+app.use(cors(getCorsConfig()))
 app.use(express.static('build')) // express checks if the 'build' directory contains the requested file
 app.use('/images', express.static('./images')) // to serve static files to path /images, from images folder
 
 // Session configuration with secure cookie settings
-app.use(session({
-	secret: process.env.SESSION_SECRET,
-	saveUninitialized: true,
-	resave: true,
-	cookie: {
-		httpOnly: true,
-		sameSite: 'strict',
-		maxAge: 24 * 60 * 60 * 1000,
-		secure: process.env.NODE_ENV === 'production'
-	}
-}));
+app.use(session(getSessionConfig()));
 const http = require('http').Server(app)
 
 // Socket.IO configuration with restricted CORS
-const socketIO = require('socket.io')(http, {
-	cors: {
-		origin: process.env.CLIENT_URL,
-		credentials: true
-	}
-});
+const socketIO = require('socket.io')(http, getSocketIOCorsConfig());
 
 const { Pool } = require('pg')
 const pool = new Pool({
@@ -70,13 +58,7 @@ const connectToDatabase = () => {
 }
 connectToDatabase()
 
-var transporter = nodemailer.createTransport({
-	service: 'gmail',
-	auth: {
-		user: process.env.EMAIL_ADDRESS,
-		pass: process.env.EMAIL_PASSWORD
-	}
-});
+var transporter = nodemailer.createTransport(getEmailTransporterConfig());
 
 const storage = multer.diskStorage({
 	destination: (req, file, cb) => {

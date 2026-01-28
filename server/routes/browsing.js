@@ -45,15 +45,32 @@ module.exports = (app, pool, transporter, socketIO) => {
 						ORDER BY username`;
 				var { rows } = await pool.query(sql, variables)
 
-				for (let i = 0; i < rows.length; i++) {
-					var sql = `SELECT tag_content FROM tags WHERE tagged_users @> array[$1]::INT[]`
-					var { rows: tags } = await pool.query(sql, [rows[i].id])
-					for (let j = 0; j < tags.length; j++) {
-						tags[j] = tags[j].tag_content
+					// Fetch all tags for all users in a single query to avoid N+1 problem
+					if (rows.length > 0) {
+						const userIds = rows.map(row => row.id)
+						const tagsSql = `SELECT tag_content, tagged_users FROM tags 
+										WHERE tagged_users && $1::INT[]`
+						const { rows: allTags } = await pool.query(tagsSql, [userIds])
+					
+						// Create a map of user_id to their tags
+						const userTagsMap = new Map()
+						for (const tag of allTags) {
+							for (const userId of tag.tagged_users) {
+								if (userIds.includes(userId)) {
+									if (!userTagsMap.has(userId)) {
+										userTagsMap.set(userId, [])
+									}
+									userTagsMap.get(userId).push(tag.tag_content)
+								}
+							}
+						}
+					
+						// Assign tags to each user
+						for (const row of rows) {
+							row.tags = userTagsMap.get(row.id) || []
+						}
 					}
-					rows[i].tags = tags
-				}
-				response.send(rows)
+					response.send(rows)
 			} catch (error) {
 				response.send("Fetching users failed")
 			}

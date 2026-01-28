@@ -29,8 +29,11 @@ Please make sure you have [Docker](https://www.docker.com/) installed on your ma
 1. Clone the repository
 2. Create `.env` file is required to run the project in the root directory.
 ```
-EMAIL_ADDRESS = <your email address>
-EMAIL_PASSWORD = <your email password>
+EMAIL_ADDRESS=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
+SESSION_SECRET=your_secure_session_secret_here
+NODE_ENV=development
+CLIENT_URL=http://localhost:3000
 ```
 3. Run `docker-compose up --build` in the root directory
 4. Go to `localhost:3000` in your browser
